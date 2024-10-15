@@ -1,0 +1,231 @@
+_G.Settings = {
+    Players = {
+        ["Ignore Me"] = true, -- Ignore your Character
+        ["Ignore Others"] = true-- Ignore other Characters
+    },
+    Meshes = {
+        Destroy = false, -- Destroy Meshes
+        LowDetail = true -- Low detail meshes (NOT SURE IT DOES ANYTHING)
+    },
+    Images = {
+        Invisible = true, -- Invisible Images
+        LowDetail = false, -- Low detail images (NOT SURE IT DOES ANYTHING)
+        Destroy = false, -- Destroy Images
+    },
+    ["No Particles"] = true, -- Disables all ParticleEmitter, Trail, Smoke, Fire and Sparkles
+    ["No Camera Effects"] = true, -- Disables all PostEffect's (Camera/Lighting Effects)
+    ["No Explosions"] = true, -- Makes Explosion's invisible
+    ["No Clothes"] = true, -- Removes Clothing from the game
+    ["Low Water Graphics"] = true, -- Removes Water Quality
+    ["No Shadows"] = true, -- Remove Shadows
+    ["Low Rendering"] = true, -- Lower Rendering
+    ["Low Quality Parts"] = true -- Lower quality parts
+}
+loadstring(game:HttpGet("https://raw.githubusercontent.com/CasperFlyModz/discord.gg-rips/main/FPSBooster.lua"))()
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local teleportKey = Enum.KeyCode.U -- Tecla para o teleporte
+local lastPosition = nil -- Armazena a última posição do jogador
+
+-- Função para teleportar o jogador para a posição da GunDrop e depois voltar
+local function teleportToGunDropAndBack()
+    -- Tenta encontrar a GunDrop APENAS quando a tecla U for pressionada
+    local gunDrop = workspace.Normal:FindFirstChild("GunDrop")
+    
+    if gunDrop and gunDrop:IsA("Part") then
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            -- Guarda a posição original antes de teleportar
+            lastPosition = LocalPlayer.Character.HumanoidRootPart.CFrame
+
+            -- Teleporta para a GunDrop
+            LocalPlayer.Character.HumanoidRootPart.CFrame = gunDrop.CFrame
+            print("Teletransportado para a GunDrop.")
+
+            -- Espera 1 segundo e depois teleporta de volta para a posição original
+            wait(1) -- Agora ajustado para 1 segundo
+            if lastPosition then
+                LocalPlayer.Character.HumanoidRootPart.CFrame = lastPosition
+                print("Teletransportado de volta à posição original.")
+            end
+        else
+            warn("Personagem não encontrado ou HumanoidRootPart não existe.")
+        end
+    else
+        warn("GunDrop não encontrada no caminho especificado.")
+    end
+end
+
+-- Detecta quando a tecla U é pressionada
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if input.KeyCode == teleportKey and not gameProcessed then
+        teleportToGunDropAndBack() -- Teleporta para a GunDrop e depois retorna
+    end
+end)
+
+local Players = game:GetService("Players")
+local ContextActionService = game:GetService("ContextActionService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+local spectating = false
+local currentTarget = nil
+local allPlayers = {}
+local murderer = nil
+local sheriff = nil
+local highlightEnabled = false -- Controle para ativar/desativar o highlight
+
+-- Cores de Highlight
+local murdererColor = Color3.new(1, 0, 0) -- Vermelho para Murder
+local sheriffColor = Color3.new(0, 0, 1)  -- Azul para Sheriff
+
+-- Função para obter todos os jogadores
+local function getAllPlayers()
+    local playersList = {}
+    for _, player in pairs(Players:GetPlayers()) do
+        if player.Character then
+            table.insert(playersList, player)
+        end
+    end
+    return playersList
+end
+
+-- Função para criar o Highlight
+local function createHighlight(player, color)
+    if player.Character and not player.Character:FindFirstChildOfClass("Highlight") then
+        local highlight = Instance.new("Highlight")
+        highlight.Adornee = player.Character
+        highlight.FillColor = color
+        highlight.OutlineTransparency = 1 -- Deixar o contorno invisível
+        highlight.Parent = player.Character
+    end
+end
+
+-- Função para remover o Highlight
+local function removeHighlight(player)
+    if player.Character then
+        local highlight = player.Character:FindFirstChildOfClass("Highlight")
+        if highlight then
+            highlight:Destroy()
+        end
+    end
+end
+
+-- Função para identificar o Murder e o Sheriff
+local function identifyMurderAndSheriff()
+    -- Limpa os highlights anteriores
+    if murderer then removeHighlight(murderer) end
+    if sheriff then removeHighlight(sheriff) end
+
+    -- Reseta o murderer e o sheriff
+    murderer = nil
+    sheriff = nil
+
+    -- Percorre todos os jogadores para identificar quem tem a faca ou a arma
+    for _, player in pairs(allPlayers) do
+        if player.Backpack:FindFirstChild("Knife") or player.Character:FindFirstChild("Knife") then
+            murderer = player
+            if highlightEnabled then
+                createHighlight(murderer, murdererColor) -- Destaca o Murder em vermelho
+            end
+        elseif player.Backpack:FindFirstChild("Gun") or player.Character:FindFirstChild("Gun") then
+            sheriff = player
+            if highlightEnabled then
+                createHighlight(sheriff, sheriffColor) -- Destaca o Sheriff em azul
+            end
+        end
+    end
+end
+
+-- Função para alternar o Highlight e realizar a checagem
+local function toggleHighlightAndCheck()
+    highlightEnabled = not highlightEnabled
+
+    -- Atualiza a lista de jogadores sempre que o highlight for ativado
+    allPlayers = getAllPlayers()
+
+    -- Realiza a checagem para encontrar o Murder e o Sheriff
+    identifyMurderAndSheriff()
+end
+
+-- Função para trocar o foco da câmera para o jogador
+local function setSpectateTarget(targetPlayer)
+    if targetPlayer and targetPlayer.Character then
+        local humanoid = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            Camera.CameraSubject = humanoid
+            currentTarget = targetPlayer
+        end
+    end
+end
+
+-- Função para começar a espectar
+local function startSpectating()
+    spectating = true
+    allPlayers = getAllPlayers() -- Atualiza a lista de jogadores
+
+    if #allPlayers > 0 then
+        setSpectateTarget(allPlayers[1]) -- Define o primeiro jogador como alvo
+    end
+end
+
+-- Função para parar a espectação
+local function stopSpectating()
+    spectating = false
+    if LocalPlayer.Character then
+        Camera.CameraSubject = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    end
+    currentTarget = nil
+end
+
+-- Navegar entre todos os jogadores
+local function navigateSpectate(direction)
+    if not spectating then return end
+
+    local index = table.find(allPlayers, currentTarget)
+    if index then
+        index = index + direction
+        if index > #allPlayers then
+            index = 1
+        elseif index < 1 then
+            index = #allPlayers
+        end
+
+        setSpectateTarget(allPlayers[index])
+    end
+end
+
+-- Função para controlar as teclas de espectação
+local function onSpectateKeybind(actionName, inputState)
+    if inputState == Enum.UserInputState.Begin then
+        if actionName == "StartSpectate" then
+            if not spectating then
+                startSpectating()
+            else
+                navigateSpectate(1) -- Troca para o próximo jogador
+            end
+        elseif actionName == "SpectateLeft" then
+            navigateSpectate(-1)
+        elseif actionName == "SpectateRight" then
+            navigateSpectate(1)
+        elseif actionName == "StopSpectate" then
+            stopSpectating() -- Para a espectação
+        elseif actionName == "ToggleHighlight" then
+            toggleHighlightAndCheck() -- Ativa/Desativa o Highlight e faz a checagem dos jogadores
+        end
+    end
+end
+
+-- Função para garantir que o input de espectador tem prioridade
+local function bindSpectatorControls()
+    -- Bind das teclas com prioridade mais alta
+    ContextActionService:BindActionAtPriority("StartSpectate", onSpectateKeybind, false, 5000, Enum.KeyCode.H)
+    ContextActionService:BindActionAtPriority("SpectateLeft", onSpectateKeybind, false, 5000, Enum.KeyCode.Q)
+    ContextActionService:BindActionAtPriority("SpectateRight", onSpectateKeybind, false, 5000, Enum.KeyCode.E)
+    ContextActionService:BindActionAtPriority("StopSpectate", onSpectateKeybind, false, 5000, Enum.KeyCode.J)
+    ContextActionService:BindActionAtPriority("ToggleHighlight", onSpectateKeybind, false, 5000, Enum.KeyCode.T) -- Tecla T para ativar/desativar o Highlight e checar jogadores
+end
+
+-- Iniciar as ações de controle assim que o script rodar
+bindSpectatorControls()
